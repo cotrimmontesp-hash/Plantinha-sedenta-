@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1d2a">
+<title>Plantinha Sedenta 💧</title>
+<style>
+  :root{--fundo:#0b1d2a;--cartao:#12293a;--texto:#ffffff;--suave:#d6e6f2;--agua:#4fc3ff;--botao:#ffd23f;--botaoTx:#111;--verde:#5ee06b}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--fundo);color:var(--texto);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  body{font-size:20px;line-height:1.35;min-height:100vh;display:flex;justify-content:center}
+  main{width:100%;max-width:480px;padding:14px 16px 28px;display:flex;flex-direction:column;gap:12px}
+  h1{font-size:28px;margin:4px 0 0;text-align:center}
+  .placar{display:flex;gap:10px}
+  .caixa{flex:1;background:var(--cartao);border:2px solid #2d5671;border-radius:16px;padding:10px;text-align:center}
+  .caixa b{display:block;font-size:30px;color:var(--agua);white-space:nowrap}
+  .caixa span{font-size:17px;color:var(--suave)}
+  #palco{background:linear-gradient(#173b55,#0f2a3d);border-radius:20px;border:2px solid #2d5671;position:relative;overflow:hidden}
+  #planta{display:block;width:100%;height:auto;max-height:42vh}
+  #msg{font-size:21px;text-align:center;min-height:2.7em;margin:0;font-weight:600}
+  #msg.alerta{background:#5a3b00;border:2px solid var(--botao);border-radius:14px;padding:10px}
+  button{font:inherit;cursor:pointer;border-radius:18px;border:3px solid transparent}
+  button:focus-visible{outline:4px solid #fff;outline-offset:3px}
+  #beber{background:var(--botao);color:var(--botaoTx);font-size:30px;font-weight:800;padding:22px 10px;min-height:92px;box-shadow:0 6px 0 #b38f00}
+  #beber:active{transform:translateY(4px);box-shadow:0 2px 0 #b38f00}
+  .linha{display:flex;gap:10px}
+  .sec{flex:1;background:transparent;color:var(--texto);border-color:#8fb3cc;font-size:19px;padding:14px 8px;min-height:60px}
+  .sec:disabled{opacity:.4}
+  #barra{height:22px;background:#06131c;border-radius:12px;overflow:hidden;border:2px solid #2d5671}
+  #barra div{height:100%;width:0;background:var(--agua);transition:width .5s}
+  dialog{background:var(--cartao);color:var(--texto);border:2px solid var(--agua);border-radius:18px;max-width:420px;width:92%;font-size:20px}
+  dialog::backdrop{background:rgba(0,0,0,.7)}
+  .contador{display:flex;align-items:center;justify-content:center;gap:16px;margin:14px 0}
+  .contador button{width:70px;height:70px;font-size:36px;font-weight:800;background:var(--agua);color:#002;}
+  .contador output{font-size:44px;font-weight:800;min-width:2ch;text-align:center}
+  .aviso{font-size:16px;color:var(--suave);text-align:center;margin:0}
+  .ok{background:var(--botao);color:#111;width:100%;font-size:22px;font-weight:800;padding:14px;margin-top:8px}
+  /* planta */
+  .caule,.folha,.flor,.botao-flor{transition:transform .8s ease, opacity .8s ease, fill .8s}
+  #plantaG{transform-origin:150px 300px;transition:transform 1.2s ease}
+  .murcha #plantaG{transform:rotate(-14deg) scaleY(.88)}
+  .murcha .folha ellipse{fill:#9a9a4a}
+  .murcha .flor circle{fill:#c98aa5}
+  .murcha .caule{stroke:#8f8f45}
+  .oculto{opacity:0;transform:scale(0)}
+  .folha,.flor{transform-box:fill-box;transform-origin:center}
+  .celebra .flor{animation:desabrocha 1.6s ease-out}
+  @keyframes desabrocha{0%{transform:scale(0) rotate(-90deg)}70%{transform:scale(1.25) rotate(10deg)}100%{transform:scale(1) rotate(0)}}
+  .gota{animation:cai 1s ease-in forwards}
+  @keyframes cai{from{transform:translateY(-60px);opacity:1}to{transform:translateY(200px);opacity:0}}
+  .confete{position:absolute;top:-20px;font-size:28px;animation:confete 2.4s ease-in forwards;pointer-events:none}
+  @keyframes confete{to{transform:translateY(420px) rotate(360deg);opacity:0}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>🌱 Plantinha Sedenta</h1>
+
+  <div class="placar">
+    <div class="caixa"><b id="copos">0/8</b><span>copos hoje</span></div>
+    <div class="caixa"><b id="ml">0 ml</b><span>de <span id="metaMl">2000</span> ml</span></div>
+    <div class="caixa"><b id="seq">0</b><span>dias seguidos 🔥</span></div>
+  </div>
+  <div id="barra" aria-hidden="true"><div></div></div>
+
+  <div id="palco">
+    <svg id="planta" viewBox="0 0 300 320" role="img" aria-label="Plantinha">
+      <!-- vaso -->
+      <path d="M95 255 L205 255 L192 315 L108 315 Z" fill="#c8693b" stroke="#7a3a1c" stroke-width="4"/>
+      <rect x="88" y="244" width="124" height="18" rx="6" fill="#d97a48" stroke="#7a3a1c" stroke-width="4"/>
+      <ellipse cx="150" cy="250" rx="54" ry="6" fill="#5b3a22"/>
+      <g id="gotas"></g>
+      <g id="plantaG">
+        <!-- semente -->
+        <ellipse id="semente" cx="150" cy="246" rx="10" ry="6" fill="#a8763e"/>
+        <path id="caule" class="caule" d="" stroke="#3fae4a" stroke-width="8" fill="none" stroke-linecap="round"/>
+        <g class="folha" data-e="1"><ellipse cx="135" cy="222" rx="16" ry="8" fill="#5ee06b" transform="rotate(-30 135 222)"/></g>
+        <g class="folha" data-e="1"><ellipse cx="165" cy="222" rx="16" ry="8" fill="#5ee06b" transform="rotate(30 165 222)"/></g>
+        <g class="folha" data-e="2"><ellipse cx="128" cy="190" rx="24" ry="11" fill="#4cd35a" transform="rotate(-25 128 190)"/></g>
+        <g class="folha" data-e="3"><ellipse cx="174" cy="165" rx="26" ry="12" fill="#4cd35a" transform="rotate(25 174 165)"/></g>
+        <g class="folha" data-e="4"><ellipse cx="126" cy="135" rx="26" ry="12" fill="#45c653" transform="rotate(-25 126 135)"/></g>
+        <g class="folha" data-e="4"><ellipse cx="172" cy="118" rx="22" ry="10" fill="#45c653" transform="rotate(25 172 118)"/></g>
+        <circle class="botao-flor" data-e="4" data-ate="4" cx="150" cy="92" r="10" fill="#ff9ec7"/>
+        <g class="flor" data-e="5">
+          <circle cx="150" cy="66" r="18" fill="#ff6fae"/><circle cx="150" cy="118" r="18" fill="#ff6fae"/>
+          <circle cx="124" cy="92" r="18" fill="#ff6fae"/><circle cx="176" cy="92" r="18" fill="#ff6fae"/>
+          <circle cx="132" cy="74" r="16" fill="#ff8cc0"/><circle cx="168" cy="74" r="16" fill="#ff8cc0"/>
+          <circle cx="132" cy="110" r="16" fill="#ff8cc0"/><circle cx="168" cy="110" r="16" fill="#ff8cc0"/>
+          <circle cx="150" cy="92" r="14" fill="#ffd23f"/>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <p id="msg" role="status" aria-live="polite"></p>
+
+  <button id="beber">Bebi um copo 💧</button>
+  <div class="linha">
+    <button id="desfazer" class="sec">↩️ Desfazer último</button>
+    <button id="config" class="sec">⚙️ Meta</button>
+  </div>
+  <p class="aviso">A meta de 8 copos (2 L) é só uma referência ajustável, não é orientação médica. Na dúvida, converse com seu médico.</p>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog">
+    <p style="margin-top:0"><b>Quantos copos de 250 ml por dia?</b></p>
+    <div class="contador">
+      <button type="button" id="menos" aria-label="Diminuir">−</button>
+      <output id="metaVal">8</output>
+      <button type="button" id="mais" aria-label="Aumentar">+</button>
+    </div>
+    <p class="aviso" id="metaLitros">= 2,0 litros</p>
+    <p class="aviso">Referência ajustável, não é orientação médica.</p>
+    <button type="button" id="notif" class="sec" style="width:100%;margin-top:10px">🔔 Ativar lembretes do celular</button>
+    <button class="ok" id="salvar" value="ok">Salvar</button>
+  </form>
+</dialog>
+
+<script id="logica">
+/* ===== Lógica pura (testável no Node) ===== */
+var Logica = (function(){
+  var ML_POR_COPO = 250, META_PADRAO = 8, MIN_SEDE = 90, META_MIN = 1, META_MAX = 20;
+  var fmt = null;
+  try { fmt = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}); } catch(e){}
+  function diaDe(ms){
+    if (fmt) { return fmt.format(new Date(ms)); } // AAAA-MM-DD
+    var d = new Date(ms); function p(n){return (n<10?'0':'')+n;}
+    return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+  }
+  function diaAnterior(dia){
+    var d = new Date(dia+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()-1);
+    return d.toISOString().slice(0,10);
+  }
+  function novoEstado(agora){
+    return {v:1, dia:diaDe(agora), copos:0, meta:META_PADRAO, sequencia:0,
+            ultimoDiaMeta:null, seqAntes:0, diaMetaAntes:null, ultimoGole:null};
+  }
+  function carregar(texto, agora){
+    var e = null;
+    try { e = JSON.parse(texto); } catch(x){}
+    var base = novoEstado(agora);
+    if (!e || typeof e !== 'object') return base;
+    for (var k in base) if (!(k in e)) e[k] = base[k];
+    e.copos = Math.max(0, parseInt(e.copos,10)||0);
+    e.meta = limitarMeta(e.meta);
+    return virarDia(e, agora);
+  }
+  function limitarMeta(m){ m = parseInt(m,10); if (!(m>=META_MIN)) m = META_PADRAO; return Math.min(META_MAX, Math.max(META_MIN, m)); }
+  /* Zera o dia à meia-noite (America/Sao_Paulo). Sequência quebra se ontem não bateu a meta. */
+  function virarDia(e, agora){
+    var hoje = diaDe(agora);
+    if (e.dia !== hoje){
+      e.dia = hoje; e.copos = 0;
+      e.seqAntes = 0; e.diaMetaAntes = null;
+      if (e.ultimoDiaMeta !== diaAnterior(hoje)) { e.sequencia = 0; }
+    }
+    return e;
+  }
+  function bateuMeta(e){ return e.copos >= e.meta; }
+  function reavaliarSequencia(e){
+    var hoje = e.dia;
+    if (bateuMeta(e) && e.ultimoDiaMeta !== hoje){
+      e.seqAntes = e.sequencia; e.diaMetaAntes = e.ultimoDiaMeta;
+      e.sequencia = (e.ultimoDiaMeta === diaAnterior(hoje)) ? e.sequencia + 1 : 1;
+      e.ultimoDiaMeta = hoje;
+      return 'bateu';
+    }
+    if (!bateuMeta(e) && e.ultimoDiaMeta === hoje){
+      e.sequencia = e.seqAntes; e.ultimoDiaMeta = e.diaMetaAntes;
+      return 'perdeu';
+    }
+    return null;
+  }
+  function beber(e, agora){
+    virarDia(e, agora);
+    e.copos += 1; e.ultimoGole = agora;
+    return reavaliarSequencia(e);
+  }
+  function desfazer(e, agora){
+    virarDia(e, agora);
+    if (e.copos <= 0) return false;
+    e.copos -= 1;
+    reavaliarSequencia(e);
+    return true;
+  }
+  function mudarMeta(e, meta, agora){
+    virarDia(e, agora);
+    e.meta = limitarMeta(meta);
+    return reavaliarSequencia(e);
+  }
+  /* Estágios 0..5: 0 semente, 1 broto, 2-3 folhas, 4 botão, 5 flor (meta batida) */
+  function estagio(e){
+    if (e.copos <= 0) return 0;
+    if (bateuMeta(e)) return 5;
+    return Math.max(1, Math.min(4, Math.ceil(e.copos * 4 / e.meta)));
+  }
+  /* Sequência a exibir: se o último dia com meta foi antes de ontem, ela já quebrou. */
+  function sequenciaVisivel(e){
+    if (e.ultimoDiaMeta === e.dia || e.ultimoDiaMeta === diaAnterior(e.dia)) return e.sequencia;
+    return 0;
+  }
+  /* Murcha se passaram 90 min desde o último copo (ou desde que a página abriu, o que for mais recente) e a meta não foi batida. */
+  function estaMurcha(e, agora, abertura){
+    if (bateuMeta(e)) return false;
+    var ref = Math.max(e.ultimoGole || 0, abertura || 0);
+    return (agora - ref) >= MIN_SEDE * 60000;
+  }
+  return {ML_POR_COPO:ML_POR_COPO, META_PADRAO:META_PADRAO, MIN_SEDE:MIN_SEDE, diaDe:diaDe, diaAnterior:diaAnterior,
+    novoEstado:novoEstado, carregar:carregar, virarDia:virarDia, beber:beber, desfazer:desfazer, mudarMeta:mudarMeta,
+    estagio:estagio, sequenciaVisivel:sequenciaVisivel, estaMurcha:estaMurcha, bateuMeta:bateuMeta, limitarMeta:limitarMeta};
+})();
+if (typeof module !== 'undefined') module.exports = Logica;
+</script>
+
+<script>
+/* ===== Interface ===== */
+(function(){
+  var CHAVE = 'plantinhaSedenta.v1';
+  var abertura = Date.now();
+  var avisouMurcha = false;
+  var $ = function(id){ return document.getElementById(id); };
+  var est;
+  try { est = Logica.carregar(localStorage.getItem(CHAVE), Date.now()); } catch(e){ est = Logica.novoEstado(Date.now()); }
+  function salvar(){ try { localStorage.setItem(CHAVE, JSON.stringify(est)); } catch(e){} }
+
+  var frasesGole = ['Boa! A plantinha agradece 🌿','Mais um! Ela está crescendo 💚','Isso aí, Paulo! 💧','Gole registrado ✅','Que beleza, continue assim 🌱'];
+  function msg(t, alerta){ var m=$('msg'); m.textContent=t; m.className = alerta ? 'alerta' : ''; }
+
+  function desenhar(){
+    var s = Logica.estagio(est);
+    var alturas = [250, 215, 180, 150, 100, 95];
+    var topo = alturas[s];
+    $('caule').setAttribute('d', s===0 ? '' : 'M150 248 Q140 '+((248+topo)/2)+' 150 '+topo);
+    $('semente').style.opacity = s===0 ? 1 : 0;
+    var els = document.querySelectorAll('[data-e]');
+    for (var i=0;i<els.length;i++){
+      var e = els[i], min = +e.getAttribute('data-e'), ate = e.getAttribute('data-ate');
+      var vis = s >= min && (ate===null || s <= +ate);
+      e.classList.toggle('oculto', !vis);
+    }
+    var murcha = Logica.estaMurcha(est, Date.now(), abertura);
+    $('palco').classList.toggle('murcha', murcha && s>0);
+    $('copos').textContent = est.copos+'/'+est.meta;
+    $('ml').textContent = (est.copos*Logica.ML_POR_COPO)+' ml';
+    $('metaMl').textContent = est.meta*Logica.ML_POR_COPO;
+    $('seq').textContent = Logica.sequenciaVisivel(est);
+    $('barra').firstElementChild.style.width = Math.min(100, est.copos/est.meta*100)+'%';
+    $('desfazer').disabled = est.copos===0;
+    $('planta').setAttribute('aria-label','Plantinha no estágio '+s+' de 5'+(murcha?', murcha de sede':''));
+    return murcha;
+  }
+
+  function gota(){
+    var g = document.createElementNS('http://www.w3.org/2000/svg','path');
+    g.setAttribute('d','M150 20 C140 38 138 46 150 52 C162 46 160 38 150 20 Z');
+    g.setAttribute('fill','#4fc3ff'); g.setAttribute('class','gota');
+    $('gotas').appendChild(g); setTimeout(function(){ g.remove(); }, 1100);
+  }
+  function celebrar(){
+    var p = $('palco'); p.classList.remove('celebra'); void p.offsetWidth; p.classList.add('celebra');
+    var em = ['🎉','💧','🌸','⭐','💚'];
+    for (var i=0;i<18;i++){ (function(i){
+      var c = document.createElement('div'); c.className='confete'; c.textContent = em[i%em.length];
+      c.style.left = (Math.random()*90)+'%'; c.style.animationDelay = (Math.random()*0.6)+'s';
+      p.appendChild(c); setTimeout(function(){ c.remove(); }, 3200);
+    })(i); }
+    if (navigator.vibrate) try{ navigator.vibrate([80,60,80,60,160]); }catch(e){}
+  }
+
+  $('beber').addEventListener('click', function(){
+    var r = Logica.beber(est, Date.now());
+    avisouMurcha = false; salvar(); gota(); desenhar();
+    if (r === 'bateu'){ celebrar(); msg('🌸 Meta do dia batida! A flor desabrochou! Sequência: '+Logica.sequenciaVisivel(est)+' dia(s).'); }
+    else if (Logica.bateuMeta(est)) msg('Já bateu a meta hoje — cada copo extra é bônus 💧');
+    else msg(frasesGole[est.copos % frasesGole.length]+' Faltam '+(est.meta-est.copos)+'.');
+    if (navigator.vibrate) try{ navigator.vibrate(40); }catch(e){}
+  });
+  $('desfazer').addEventListener('click', function(){
+    if (Logica.desfazer(est, Date.now())){ salvar(); desenhar(); msg('Último copo desfeito ↩️ Agora são '+est.copos+'.'); }
+  });
+
+  // Configuração da meta
+  var metaTemp = est.meta;
+  function mostrarMeta(){ $('metaVal').textContent = metaTemp; $('metaLitros').textContent = '= '+(metaTemp*0.25).toFixed(2).replace('.',',').replace(/0$/,'')+' litros'; }
+  $('config').addEventListener('click', function(){ metaTemp = est.meta; mostrarMeta(); atualizarBotaoNotif(); if ($('dlg').showModal) $('dlg').showModal(); else $('dlg').setAttribute('open',''); });
+  $('menos').addEventListener('click', function(){ metaTemp = Logica.limitarMeta(metaTemp-1); mostrarMeta(); });
+  $('mais').addEventListener('click', function(){ metaTemp = Logica.limitarMeta(metaTemp+1); mostrarMeta(); });
+  $('salvar').addEventListener('click', function(){
+    var r = Logica.mudarMeta(est, metaTemp, Date.now()); salvar(); desenhar();
+    if (r==='bateu'){ celebrar(); msg('🌸 Com a nova meta, você já bateu o dia!'); } else msg('Meta salva: '+est.meta+' copos ('+(est.meta*250)+' ml).');
+    if (!$('dlg').showModal) $('dlg').removeAttribute('open');
+  });
+
+  // Notificações (opcional)
+  function atualizarBotaoNotif(){
+    var b = $('notif');
+    if (!('Notification' in window)) { b.textContent='🔔 Lembretes do celular indisponíveis aqui'; b.disabled=true; return; }
+    if (Notification.permission==='granted'){ b.textContent='🔔 Lembretes ativados ✅'; b.disabled=true; }
+    else if (Notification.permission==='denied'){ b.textContent='🔕 Lembretes bloqueados no navegador'; b.disabled=true; }
+  }
+  $('notif').addEventListener('click', function(){
+    try { var p = Notification.requestPermission(function(){ atualizarBotaoNotif(); }); if (p && p.then) p.then(atualizarBotaoNotif); } catch(e){}
+  });
+  function notificar(texto){
+    if (!('Notification' in window) || Notification.permission!=='granted') return;
+    try { new Notification('Plantinha Sedenta 🌱', {body:texto, tag:'plantinha'}); } // no Chrome Android isso pode falhar (exige service worker); fica só a mensagem na tela
+    catch(e){}
+  }
+
+  // Verificação periódica: virada de dia e sede
+  function verificar(){
+    var antes = est.dia;
+    Logica.virarDia(est, Date.now());
+    if (est.dia !== antes){ salvar(); abertura = Date.now(); avisouMurcha=false; msg('☀️ Novo dia! A plantinha recomeçou. Bom primeiro copo!'); }
+    var murcha = desenhar();
+    if (murcha && !avisouMurcha){
+      avisouMurcha = true;
+      var t = 'Ei, Paulo, a plantinha está com sede 🥀 Que tal um copo d\'água agora?';
+      msg(t, true); notificar(t);
+      if (navigator.vibrate) try{ navigator.vibrate([200,100,200]); }catch(e){}
+    }
+  }
+  setInterval(verificar, 30000);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) verificar(); });
+
+  desenhar();
+  msg(est.copos===0 ? 'Olá! Toque no botão amarelo a cada copo d\'água 💧' : 'Bem-vindo de volta! '+est.copos+' copo(s) hoje.');
+  window.__plantinha = {estado:function(){return est;}, verificar:verificar, setAbertura:function(t){abertura=t;}};
+})();
+</script>
+</body>
+                                                                     </html>
