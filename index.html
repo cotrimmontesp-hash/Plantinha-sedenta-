@@ -57,6 +57,17 @@
   @keyframes cai{from{transform:translateY(-60px);opacity:1}to{transform:translateY(200px);opacity:0}}
   .confete{position:absolute;top:-20px;font-size:28px;animation:confete 2.4s ease-in forwards;pointer-events:none}
   @keyframes confete{to{transform:translateY(420px) rotate(360deg);opacity:0}}
+  .painel{background:var(--cartao);border:2px solid #2d5671;border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .painel h2{font-size:22px;margin:0}
+  .painel label{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+  .painel select,.painel input{font:inherit;font-size:20px;min-height:52px;flex:1;min-width:0;width:100%;background:#06131c;color:#fff;border:2px solid #8fb3cc;border-radius:12px;padding:4px 8px}
+  #dLiga[aria-pressed=true]{background:var(--verde);color:#111;font-weight:800}
+  #dProx{margin:0;font-weight:700;color:var(--agua)}
+  #alarme{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:16px}
+  #alarme[hidden]{display:none}
+  #alarme>div{background:var(--cartao);border:3px solid var(--agua);border-radius:20px;padding:20px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px;text-align:center}
+  #alTit{font-size:30px;font-weight:800;margin:0}
+  #alBebi{background:var(--botao);color:#111;font-size:28px;font-weight:800;min-height:88px}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -107,6 +118,16 @@
     <button id="desfazer" class="sec">↩️ Desfazer último</button>
     <button id="config" class="sec">⚙️ Meta</button>
   </div>
+  <section class="painel" aria-label="Despertador">
+    <h2>⏰ Despertador</h2>
+    <button id="dLiga" class="sec" aria-pressed="false">🔕 Desligado (tocar para ligar)</button>
+    <label>A cada <select id="dInt"><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 hora</option><option value="90">1h30</option><option value="120">2 horas</option></select></label>
+    <label>Das <input type="time" id="dIni"></label>
+    <label>Até <input type="time" id="dFim"></label>
+    <p id="dProx" aria-live="polite"></p>
+    <button id="dTeste" class="sec">🔊 Testar despertador</button>
+    <p class="aviso">Mantenha o app aberto; ele toca enquanto estiver aberto ou recém-fechado.</p>
+  </section>
   <p class="aviso">A meta de 8 copos (2 L) é só uma referência ajustável, não é orientação médica. Na dúvida, converse com seu médico.</p>
 </main>
 
@@ -124,6 +145,12 @@
     <button class="ok" id="salvar" value="ok">Salvar</button>
   </form>
 </dialog>
+
+<div id="alarme" role="alertdialog" aria-labelledby="alTit" hidden><div>
+  <p id="alTit">💧 Hora de beber água!</p>
+  <button id="alBebi">Bebi um copo 💧</button>
+  <button id="alSoneca" class="sec">😴 Soneca 10 min</button>
+</div></div>
 
 <script id="logica">
 /* ===== Lógica pura (testável no Node) ===== */
@@ -214,7 +241,34 @@ var Logica = (function(){
     var ref = Math.max(e.ultimoGole || 0, abertura || 0);
     return (agora - ref) >= MIN_SEDE * 60000;
   }
-  return {ML_POR_COPO:ML_POR_COPO, META_PADRAO:META_PADRAO, MIN_SEDE:MIN_SEDE, diaDe:diaDe, diaAnterior:diaAnterior,
+  /* ===== Despertador (horários em America/Sao_Paulo) ===== */
+  var fmtH = null, INTERVALOS = [30,45,60,90,120];
+  try { fmtH = new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}); } catch(e){}
+  function hhmm(ms){ if (fmtH) return fmtH.format(new Date(ms)).slice(0,5); var d=new Date(ms), p=function(n){return (n<10?'0':'')+n;}; return p(d.getHours())+':'+p(d.getMinutes()); }
+  function minDe(ms){ var h = hhmm(ms).split(':'); return (+h[0])*60 + (+h[1]); }
+  function minTxt(t, pad){ var m = /^(\d{1,2}):(\d{2})/.exec(t||''); return m ? Math.min(1439, (+m[1])*60 + (+m[2])) : pad; }
+  function novoDesp(){ return {ligado:false, intervalo:90, inicio:'08:00', fim:'20:00', ligadoEm:null, ultimoToque:null, soneca:null}; }
+  function carregarDesp(texto){
+    var d = null; try { d = JSON.parse(texto); } catch(x){}
+    var b = novoDesp(); if (!d || typeof d !== 'object') return b;
+    for (var k in b) if (!(k in d)) d[k] = b[k];
+    d.ligado = !!d.ligado; d.intervalo = INTERVALOS.indexOf(+d.intervalo) >= 0 ? +d.intervalo : 90;
+    return d;
+  }
+  function naJanela(d, ms){ var m = minDe(ms), a = minTxt(d.inicio,480), b = minTxt(d.fim,1200); return a <= b ? (m >= a && m <= b) : (m >= a || m <= b); }
+  function irParaJanela(d, ms){ if (naJanela(d, ms)) return ms; var falta = (minTxt(d.inicio,480) - minDe(ms) + 1440) % 1440; return ms - ms%60000 + falta*60000; }
+  /* Próximo toque: soneca, ou intervalo contado do último copo / último toque / quando ligou. Fora da janela, vai para o início dela. */
+  function proximoAlarme(d, ultimoGole, agora){
+    if (!d.ligado) return null;
+    var alvo = d.soneca || (Math.max(ultimoGole||0, d.ultimoToque||0, d.ligadoEm||0) + d.intervalo*60000);
+    if (alvo < agora && !naJanela(d, agora)) alvo = agora;
+    return irParaJanela(d, alvo);
+  }
+  function deveTocar(d, ultimoGole, agora){ var p = proximoAlarme(d, ultimoGole, agora); return p !== null && agora >= p && naJanela(d, agora); }
+  function marcarToque(d, agora){ d.ultimoToque = agora; d.soneca = null; }
+  function soneca(d, agora){ d.ultimoToque = agora; d.soneca = agora + 10*60000; return d.soneca; }
+  return {hhmm:hhmm, novoDesp:novoDesp, carregarDesp:carregarDesp, naJanela:naJanela, proximoAlarme:proximoAlarme, deveTocar:deveTocar, marcarToque:marcarToque, soneca:soneca,
+    ML_POR_COPO:ML_POR_COPO, META_PADRAO:META_PADRAO, MIN_SEDE:MIN_SEDE, diaDe:diaDe, diaAnterior:diaAnterior,
     novoEstado:novoEstado, carregar:carregar, virarDia:virarDia, beber:beber, desfazer:desfazer, mudarMeta:mudarMeta,
     estagio:estagio, sequenciaVisivel:sequenciaVisivel, estaMurcha:estaMurcha, bateuMeta:bateuMeta, limitarMeta:limitarMeta};
 })();
@@ -279,6 +333,7 @@ if (typeof module !== 'undefined') module.exports = Logica;
   $('beber').addEventListener('click', function(){
     var r = Logica.beber(est, Date.now());
     avisouMurcha = false; salvar(); gota(); desenhar();
+    desp.soneca = null; salvarDesp(); $('alarme').hidden = true; mostrarProx();
     if (r === 'bateu'){ celebrar(); msg('🌸 Meta do dia batida! A flor desabrochou! Sequência: '+Logica.sequenciaVisivel(est)+' dia(s).'); }
     else if (Logica.bateuMeta(est)) msg('Já bateu a meta hoje — cada copo extra é bônus 💧');
     else msg(frasesGole[est.copos % frasesGole.length]+' Faltam '+(est.meta-est.copos)+'.');
@@ -310,9 +365,10 @@ if (typeof module !== 'undefined') module.exports = Logica;
   $('notif').addEventListener('click', function(){
     try { var p = Notification.requestPermission(function(){ atualizarBotaoNotif(); }); if (p && p.then) p.then(atualizarBotaoNotif); } catch(e){}
   });
-  function notificar(texto){
+  function notificar(texto, alarme){
     if (!('Notification' in window) || Notification.permission!=='granted') return;
     var titulo = 'Plantinha Sedenta 🌱', op = {body:texto, tag:'plantinha'};
+    if (alarme) { op.tag = 'plantinha-alarme'; op.renotify = true; op.requireInteraction = true; op.vibrate = [400,200,400,200,800]; }
     function direto(){ try { new Notification(titulo, op); } catch(e){} } // fallback (computador sem service worker)
     if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistration) {
       // No Chrome do Android o construtor falha; com service worker usa registration.showNotification
@@ -329,7 +385,7 @@ if (typeof module !== 'undefined') module.exports = Logica;
     Logica.virarDia(est, Date.now());
     if (est.dia !== antes){ salvar(); abertura = Date.now(); avisouMurcha=false; msg('☀️ Novo dia! A plantinha recomeçou. Bom primeiro copo!'); }
     var murcha = desenhar();
-    if (murcha && !avisouMurcha){
+    if (murcha && !avisouMurcha && !desp.ligado){ // com despertador ligado, quem avisa é ele
       avisouMurcha = true;
       var t = 'Ei, Paulo, a plantinha está com sede 🥀 Que tal um copo d\'água agora?';
       msg(t, true); notificar(t);
@@ -337,11 +393,81 @@ if (typeof module !== 'undefined') module.exports = Logica;
     }
   }
   setInterval(verificar, 30000);
-  document.addEventListener('visibilitychange', function(){ if (!document.hidden) verificar(); });
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) { verificar(); conferirAlarme(); } });
+
+  // ===== Despertador =====
+  var CHAVE_D = 'plantinhaSedenta.despertador', desp;
+  try { desp = Logica.carregarDesp(localStorage.getItem(CHAVE_D)); } catch(e){ desp = Logica.novoDesp(); }
+  function salvarDesp(){ try { localStorage.setItem(CHAVE_D, JSON.stringify(desp)); } catch(e){} }
+  var ac = null, somT = null, oscs = [];
+  function audio(){ // Android só libera som depois de um toque: criar/retomar no gesto
+    try { if (!ac) { var C = window.AudioContext || window.webkitAudioContext; if (C) ac = new C(); } if (ac && ac.state === 'suspended') ac.resume(); } catch(e){}
+    return ac;
+  }
+  function melodia(){
+    var a = audio(); if (!a) return; var t = a.currentTime + 0.05;
+    [880,1175,1568,1175,1568].forEach(function(f,i){
+      var o = a.createOscillator(), g = a.createGain(), t0 = t + i*0.22;
+      o.type = 'square'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.35, t0+0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0+0.2);
+      o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0+0.22); oscs.push(o);
+    });
+  }
+  function vibrar(p){ if (navigator.vibrate) try { navigator.vibrate(p); } catch(e){} }
+  function pararSom(){
+    if (somT) { clearInterval(somT); somT = null; vibrar(0); }
+    oscs.forEach(function(o){ try { o.stop(); } catch(e){} }); oscs = [];
+  }
+  function tocarSom(){ // melodia a cada 2 s por ~10 s
+    pararSom(); var n = 0; melodia(); vibrar([400,200,400,200,800]);
+    somT = setInterval(function(){ if (++n >= 5) return pararSom(); melodia(); vibrar([400,200,400]); }, 2000);
+  }
+  // qualquer botão para o som (fase de captura: roda antes do clique do botão)
+  document.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('button')) { pararSom(); if (desp.ligado) audio(); }
+  }, true);
+  function dispararAlarme(teste){
+    if (!teste) { Logica.marcarToque(desp, Date.now()); salvarDesp(); }
+    var d = $('dlg'); if (d.open) try { d.close(); } catch(e){ d.removeAttribute('open'); }
+    $('alarme').hidden = false; tocarSom();
+    if (!teste) { notificar('💧 Hora de beber água! A plantinha está esperando.', true); msg('⏰ Hora de beber água!', true); }
+    mostrarProx();
+  }
+  function conferirAlarme(){
+    if ($('alarme').hidden && Logica.deveTocar(desp, est.ultimoGole, Date.now())) dispararAlarme(false); // dispara 1 vez só
+    mostrarProx();
+  }
+  function mostrarProx(){
+    var b = $('dLiga'); b.setAttribute('aria-pressed', desp.ligado);
+    b.textContent = desp.ligado ? '🔔 Ligado (tocar para desligar)' : '🔕 Desligado (tocar para ligar)';
+    var p = Logica.proximoAlarme(desp, est.ultimoGole, Date.now());
+    $('dProx').textContent = p === null ? 'Despertador desligado.' : 'Próximo lembrete às ' + Logica.hhmm(p) + (Logica.diaDe(p) !== Logica.diaDe(Date.now()) ? ' (amanhã)' : '') + (desp.soneca ? ' 😴' : '');
+  }
+  $('dInt').value = desp.intervalo; $('dIni').value = desp.inicio; $('dFim').value = desp.fim;
+  $('dLiga').addEventListener('click', function(){
+    desp.ligado = !desp.ligado; desp.soneca = null;
+    if (desp.ligado) {
+      desp.ligadoEm = Date.now(); audio();
+      try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch(e){}
+    }
+    salvarDesp(); mostrarProx();
+  });
+  $('dInt').addEventListener('change', function(){ desp.intervalo = +this.value; salvarDesp(); mostrarProx(); });
+  $('dIni').addEventListener('change', function(){ if (this.value) desp.inicio = this.value; salvarDesp(); mostrarProx(); });
+  $('dFim').addEventListener('change', function(){ if (this.value) desp.fim = this.value; salvarDesp(); mostrarProx(); });
+  $('dTeste').addEventListener('click', function(){ audio(); dispararAlarme(true); });
+  $('alBebi').addEventListener('click', function(){ $('alarme').hidden = true; $('beber').click(); });
+  $('alSoneca').addEventListener('click', function(){
+    var t = Logica.soneca(desp, Date.now()); salvarDesp(); $('alarme').hidden = true; mostrarProx();
+    msg('😴 Soneca: toco de novo às ' + Logica.hhmm(t) + '.');
+  });
+  setInterval(conferirAlarme, 15000);
+  mostrarProx();
 
   desenhar();
   msg(est.copos===0 ? 'Olá! Toque no botão amarelo a cada copo d\'água 💧' : 'Bem-vindo de volta! '+est.copos+' copo(s) hoje.');
-  window.__plantinha = {estado:function(){return est;}, verificar:verificar, setAbertura:function(t){abertura=t;}};
+  window.__plantinha = {estado:function(){return est;}, verificar:verificar, setAbertura:function(t){abertura=t;},
+    desp:function(){return desp;}, conferirAlarme:conferirAlarme, somTocando:function(){return !!somT;}};
 })();
 /* ===== PWA: service worker (cache offline + notificações no Android) ===== */
 if ('serviceWorker' in navigator) {
@@ -349,4 +475,4 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 </body>
-  </html>
+        </html>
