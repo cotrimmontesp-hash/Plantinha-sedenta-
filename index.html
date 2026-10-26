@@ -71,6 +71,13 @@
   #alarme>div{background:var(--cartao);border:3px solid var(--agua);border-radius:20px;padding:20px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px;text-align:center}
   #alTit{font-size:30px;font-weight:800;margin:0}
   #alBebi{background:var(--botao);color:#111;font-size:28px;font-weight:800;min-height:88px}
+  #hist{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;align-items:end;height:150px}
+  #hist div{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;font-size:14px;color:var(--suave)}
+  #hist i{display:block;width:70%;min-height:3px;background:var(--agua);border-radius:6px 6px 0 0}
+  #hist .meta i{background:var(--verde)} #hist .vazio i{background:#2d5671}
+  #hist .hoje{color:#fff;font-weight:800} #hist .hoje b{outline:2px solid var(--botao);border-radius:6px;padding:0 4px}
+  #hist b{font-size:15px}
+  #hResumo{margin:0;font-size:17px;text-align:center}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -121,6 +128,11 @@
     <button id="desfazer" class="sec">↩️ Desfazer último</button>
     <button id="config" class="sec">⚙️ Meta</button>
   </div>
+  <section class="painel" aria-label="Últimos 7 dias">
+    <h2>📊 Últimos 7 dias <small style="font-size:15px;font-weight:400">(ml)</small></h2>
+    <div id="hist"></div>
+    <p id="hResumo"></p>
+  </section>
   <section class="painel" aria-label="Despertador">
     <h2>⏰ Despertador</h2>
     <button id="dLiga" class="sec" aria-pressed="false">🔕 Desligado (tocar para ligar)</button>
@@ -174,7 +186,7 @@ var Logica = (function(){
   }
   function novoEstado(agora){
     return {v:1, dia:diaDe(agora), copos:0, meta:META_PADRAO, copoMl:ML_POR_COPO, sequencia:0,
-            ultimoDiaMeta:null, seqAntes:0, diaMetaAntes:null, ultimoGole:null};
+            ultimoDiaMeta:null, seqAntes:0, diaMetaAntes:null, ultimoGole:null, historico:{}};
   }
   function carregar(texto, agora){
     var e = null;
@@ -184,6 +196,7 @@ var Logica = (function(){
     for (var k in base) if (!(k in e)) e[k] = base[k];
     e.copos = Math.max(0, parseInt(e.copos,10)||0);
     e.meta = limitarMeta(e.meta); e.copoMl = limitarCopo(e.copoMl);
+    if (!e.historico || typeof e.historico !== 'object' || Array.isArray(e.historico)) e.historico = {}; // versão antiga => {}
     return virarDia(e, agora);
   }
   function limitarCopo(ml){ ml = parseInt(ml,10); return COPOS_ML.indexOf(ml) >= 0 ? ml : ML_POR_COPO; } // sem campo (versão antiga) => 250
@@ -193,11 +206,25 @@ var Logica = (function(){
   function virarDia(e, agora){
     var hoje = diaDe(agora);
     if (e.dia !== hoje){
+      if (e.historico && e.historico[e.dia]) registrar(e); // guarda o dia que acabou antes de zerar
       e.dia = hoje; e.copos = 0;
       e.seqAntes = 0; e.diaMetaAntes = null;
       if (e.ultimoDiaMeta !== diaAnterior(hoje)) { e.sequencia = 0; }
     }
     return e;
+  }
+  /* Histórico: {'AAAA-MM-DD': {copos, meta, ml}}, só os últimos 30 dias */
+  function registrar(e){
+    var h = e.historico || (e.historico = {});
+    h[e.dia] = {copos:e.copos, meta:e.meta, ml:e.copos*e.copoMl};
+    Object.keys(h).sort().slice(0, -30).forEach(function(k){ delete h[k]; });
+  }
+  function semana(e){ // 7 dias terminando em e.dia
+    var r = [], d = e.dia, L = 'DSTQQSS';
+    for (var i=0;i<7;i++){ var x = (e.historico||{})[d]; r.unshift({dia:d, letra:L[new Date(d+'T12:00:00Z').getUTCDay()], reg:x||null, hoje:i===0, bateu:!!x && x.copos>=x.meta}); d = diaAnterior(d); }
+    var c = r.filter(function(o){return o.reg;}), soma = 0; c.forEach(function(o){ soma += o.reg.ml; });
+    r.bateu = r.filter(function(o){return o.bateu;}).length; r.com = c.length; r.media = c.length ? Math.round(soma/c.length) : 0;
+    return r;
   }
   function bateuMeta(e){ return e.copos >= e.meta; }
   function reavaliarSequencia(e){
@@ -217,19 +244,19 @@ var Logica = (function(){
   function beber(e, agora){
     virarDia(e, agora);
     e.copos += 1; e.ultimoGole = agora;
-    return reavaliarSequencia(e);
+    var r = reavaliarSequencia(e); registrar(e); return r;
   }
   function desfazer(e, agora){
     virarDia(e, agora);
     if (e.copos <= 0) return false;
     e.copos -= 1;
-    reavaliarSequencia(e);
+    reavaliarSequencia(e); registrar(e);
     return true;
   }
   function mudarMeta(e, meta, agora){
     virarDia(e, agora);
     e.meta = limitarMeta(meta);
-    return reavaliarSequencia(e);
+    var r = reavaliarSequencia(e); registrar(e); return r;
   }
   /* Estágios 0..5: 0 semente, 1 broto, 2-3 folhas, 4 botão, 5 flor (meta batida) */
   function estagio(e){
@@ -277,7 +304,7 @@ var Logica = (function(){
   return {hhmm:hhmm, novoDesp:novoDesp, carregarDesp:carregarDesp, naJanela:naJanela, proximoAlarme:proximoAlarme, deveTocar:deveTocar, marcarToque:marcarToque, soneca:soneca,
     ML_POR_COPO:ML_POR_COPO, META_PADRAO:META_PADRAO, MIN_SEDE:MIN_SEDE, diaDe:diaDe, diaAnterior:diaAnterior,
     novoEstado:novoEstado, carregar:carregar, virarDia:virarDia, beber:beber, desfazer:desfazer, mudarMeta:mudarMeta,
-    estagio:estagio, sequenciaVisivel:sequenciaVisivel, estaMurcha:estaMurcha, bateuMeta:bateuMeta, limitarMeta:limitarMeta, COPOS_ML:COPOS_ML, limitarCopo:limitarCopo, litros:litros};
+    estagio:estagio, sequenciaVisivel:sequenciaVisivel, estaMurcha:estaMurcha, bateuMeta:bateuMeta, limitarMeta:limitarMeta, COPOS_ML:COPOS_ML, limitarCopo:limitarCopo, litros:litros, registrar:registrar, semana:semana};
 })();
 if (typeof module !== 'undefined') module.exports = Logica;
 </script>
@@ -316,6 +343,12 @@ if (typeof module !== 'undefined') module.exports = Logica;
     $('seq').textContent = Logica.sequenciaVisivel(est);
     $('barra').firstElementChild.style.width = Math.min(100, est.copos/est.meta*100)+'%';
     $('desfazer').disabled = est.copos===0;
+    var w = Logica.semana(est);
+    $('hist').innerHTML = w.map(function(o){
+      var x = o.reg, h = x ? Math.round(Math.min(1, x.copos/x.meta)*100) : 0;
+      return '<div class="'+(x ? (o.bateu?'meta':'') : 'vazio')+(o.hoje?' hoje':'')+'" title="'+o.dia+'"><span>'+(x ? x.ml : '–')+'</span><i style="height:'+h+'px"></i><b>'+o.letra+'</b></div>';
+    }).join('');
+    $('hResumo').textContent = w.com ? 'Bateu a meta em '+w.bateu+' de 7 dias · média '+w.media+' ml/dia' : 'Ainda sem histórico';
     $('planta').setAttribute('aria-label','Plantinha no estágio '+s+' de 5'+(murcha?', murcha de sede':''));
     return murcha;
   }
@@ -487,4 +520,4 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 </body>
-    </html>
+                                                 </html>
