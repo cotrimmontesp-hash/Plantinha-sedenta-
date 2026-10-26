@@ -78,6 +78,17 @@
   #hist .hoje{color:#fff;font-weight:800} #hist .hoje b{outline:2px solid var(--botao);border-radius:6px;padding:0 4px}
   #hist b{font-size:15px}
   #hResumo{margin:0;font-size:17px;text-align:center}
+  #medalhas{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  #medalhas div{background:#06131c;border:2px solid var(--botao);border-radius:14px;padding:8px 6px;text-align:center;font-size:16px;min-width:0}
+  #medalhas .em{display:block;font-size:34px;line-height:1.2}
+  #medalhas b{display:block;font-size:17px}
+  #medalhas small{display:block;font-size:14px;color:var(--suave)}
+  #medalhas .bloq{border-color:#2d5671;color:#8a9aa6}
+  #medalhas .bloq .em{filter:grayscale(1);opacity:.45}
+  #medalhas .bloq b{color:#8a9aa6}
+  #mResumo{margin:0;font-size:17px;text-align:center}
+  #toast{position:fixed;left:12px;right:12px;bottom:18px;z-index:8;background:var(--botao);color:#111;font-size:22px;font-weight:800;text-align:center;border-radius:16px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+  #toast[hidden]{display:none}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -133,6 +144,11 @@
     <div id="hist"></div>
     <p id="hResumo"></p>
   </section>
+  <section class="painel" aria-label="Conquistas">
+    <h2>🏅 Conquistas</h2>
+    <div id="medalhas"></div>
+    <p id="mResumo"></p>
+  </section>
   <section class="painel" aria-label="Despertador">
     <h2>⏰ Despertador</h2>
     <button id="dLiga" class="sec" aria-pressed="false">🔕 Desligado (tocar para ligar)</button>
@@ -162,6 +178,8 @@
     <button class="ok" id="salvar" value="ok">Salvar</button>
   </form>
 </dialog>
+
+<div id="toast" role="status" aria-live="assertive" hidden></div>
 
 <div id="alarme" role="alertdialog" aria-labelledby="alTit" hidden><div>
   <p id="alTit">💧 Hora de beber água!</p>
@@ -301,7 +319,38 @@ var Logica = (function(){
   function deveTocar(d, ultimoGole, agora){ var p = proximoAlarme(d, ultimoGole, agora); return p !== null && agora >= p && naJanela(d, agora); }
   function marcarToque(d, agora){ d.ultimoToque = agora; d.soneca = null; }
   function soneca(d, agora){ d.ultimoToque = agora; d.soneca = agora + 10*60000; return d.soneca; }
-  return {hhmm:hhmm, novoDesp:novoDesp, carregarDesp:carregarDesp, naJanela:naJanela, proximoAlarme:proximoAlarme, deveTocar:deveTocar, marcarToque:marcarToque, soneca:soneca,
+  /* ===== Conquistas: {id: 'AAAA-MM-DD'} em plantinhaSedenta.medalhas ===== */
+  var MEDALHAS = [
+    {id:'gole', em:'💧', nome:'Primeiro gole', como:'Beba o 1º copo'},
+    {id:'flor', em:'🌸', nome:'Flor aberta', como:'Bata a meta 1 vez'},
+    {id:'seq3', em:'🔥', nome:'3 dias seguidos', como:'Meta 3 dias seguidos'},
+    {id:'seq7', em:'🌟', nome:'7 dias seguidos', como:'Meta 7 dias seguidos'},
+    {id:'perfeita', em:'🏆', nome:'Semana perfeita', como:'Meta nos 7 dias do gráfico'},
+    {id:'desp', em:'⏰', nome:'Despertador amigo', como:'Ligue o despertador e beba'}
+  ];
+  function carregarMedalhas(texto){
+    var m = null; try { m = JSON.parse(texto); } catch(x){}
+    var r = {}; if (!m || typeof m !== 'object' || Array.isArray(m)) return r;
+    MEDALHAS.forEach(function(x){ if (typeof m[x.id] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m[x.id])) r[x.id] = m[x.id]; });
+    return r;
+  }
+  /* Retorna os ids das medalhas que valem agora e ainda não estão em 'ganhas' (não altera nada). */
+  function avaliarMedalhas(e, d, hoje, ganhas){
+    ganhas = ganhas || {}; d = d || {};
+    var h = e.historico || {}, dias = Object.keys(h), w = semana(e);
+    var vale = {
+      gole: e.copos > 0 || !!e.ultimoGole || dias.some(function(k){ return h[k].copos > 0; }),
+      flor: bateuMeta(e) || !!e.ultimoDiaMeta || dias.some(function(k){ return h[k].copos >= h[k].meta; }),
+      seq3: e.sequencia >= 3,
+      seq7: e.sequencia >= 7,
+      perfeita: w.com === 7 && w.bateu === 7,
+      desp: !!d.ligado && !!e.ultimoGole && e.ultimoGole >= (d.ligadoEm || 0)
+    };
+    return MEDALHAS.filter(function(x){ return vale[x.id] && !ganhas[x.id]; }).map(function(x){ return x.id; });
+  }
+  function dataBR(dia){ var p = String(dia).split('-'); return p.length === 3 ? p[2]+'/'+p[1]+'/'+p[0] : ''; }
+  return {MEDALHAS:MEDALHAS, carregarMedalhas:carregarMedalhas, avaliarMedalhas:avaliarMedalhas, dataBR:dataBR,
+    hhmm:hhmm, novoDesp:novoDesp, carregarDesp:carregarDesp, naJanela:naJanela, proximoAlarme:proximoAlarme, deveTocar:deveTocar, marcarToque:marcarToque, soneca:soneca,
     ML_POR_COPO:ML_POR_COPO, META_PADRAO:META_PADRAO, MIN_SEDE:MIN_SEDE, diaDe:diaDe, diaAnterior:diaAnterior,
     novoEstado:novoEstado, carregar:carregar, virarDia:virarDia, beber:beber, desfazer:desfazer, mudarMeta:mudarMeta,
     estagio:estagio, sequenciaVisivel:sequenciaVisivel, estaMurcha:estaMurcha, bateuMeta:bateuMeta, limitarMeta:limitarMeta, COPOS_ML:COPOS_ML, limitarCopo:limitarCopo, litros:litros, registrar:registrar, semana:semana};
@@ -370,6 +419,32 @@ if (typeof module !== 'undefined') module.exports = Logica;
     if (navigator.vibrate) try{ navigator.vibrate([80,60,80,60,160]); }catch(e){}
   }
 
+  // ===== Conquistas =====
+  var CHAVE_M = 'plantinhaSedenta.medalhas', ganhas;
+  try { ganhas = Logica.carregarMedalhas(localStorage.getItem(CHAVE_M)); } catch(e){ ganhas = {}; }
+  var toastT = null;
+  function desenharMedalhas(){
+    var n = 0;
+    $('medalhas').innerHTML = Logica.MEDALHAS.map(function(x){
+      var g = ganhas[x.id]; if (g) n++;
+      return '<div class="'+(g?'ganha':'bloq')+'" data-id="'+x.id+'"><span class="em">'+x.em+'</span><b>'+x.nome+'</b><small>'+(g ? '✅ '+Logica.dataBR(g) : '🔒 '+x.como)+'</small></div>';
+    }).join('');
+    $('mResumo').textContent = n+' de '+Logica.MEDALHAS.length+' medalhas';
+  }
+  function conferirMedalhas(semVibrar){ // nunca remove medalhas; só acrescenta
+    var novas = Logica.avaliarMedalhas(est, desp, est.dia, ganhas);
+    if (!novas.length) return novas;
+    novas.forEach(function(id){ ganhas[id] = est.dia; });
+    try { localStorage.setItem(CHAVE_M, JSON.stringify(ganhas)); } catch(e){}
+    desenharMedalhas();
+    var nomes = novas.map(function(id){ var x = Logica.MEDALHAS.filter(function(m){ return m.id === id; })[0]; return x.em+' '+x.nome; });
+    var t = $('toast'); t.textContent = '🏅 '+(novas.length > 1 ? 'Novas medalhas: ' : 'Nova medalha: ')+nomes.join(', ')+'!'; t.hidden = false;
+    clearTimeout(toastT); toastT = setTimeout(function(){ t.hidden = true; }, 4500);
+    if (!semVibrar) setTimeout(function(){ if (navigator.vibrate) try{ navigator.vibrate([60,40,60]); }catch(e){} }, 450);
+    return novas;
+  }
+  $('toast').addEventListener('click', function(){ this.hidden = true; });
+
   $('beber').addEventListener('click', function(){
     var r = Logica.beber(est, Date.now());
     avisouMurcha = false; salvar(); gota(); desenhar();
@@ -378,6 +453,7 @@ if (typeof module !== 'undefined') module.exports = Logica;
     else if (Logica.bateuMeta(est)) msg('Já bateu a meta hoje — cada copo extra é bônus 💧');
     else msg(frasesGole[est.copos % frasesGole.length]+' Faltam '+(est.meta-est.copos)+'.');
     if (navigator.vibrate) try{ navigator.vibrate(40); }catch(e){}
+    conferirMedalhas();
   });
   $('desfazer').addEventListener('click', function(){
     if (Logica.desfazer(est, Date.now())){ salvar(); desenhar(); msg('Último copo desfeito ↩️ Agora são '+est.copos+'.'); }
@@ -398,6 +474,7 @@ if (typeof module !== 'undefined') module.exports = Logica;
     est.copoMl = copoTemp; var r = Logica.mudarMeta(est, metaTemp, Date.now()); salvar(); desenhar();
     if (r==='bateu'){ celebrar(); msg('🌸 Com a nova meta, você já bateu o dia!'); } else msg('Meta salva: '+est.meta+' copos de '+est.copoMl+' ml ('+(est.meta*est.copoMl)+' ml = '+Logica.litros(est.meta*est.copoMl)+').');
     if (!$('dlg').showModal) $('dlg').removeAttribute('open');
+    conferirMedalhas();
   });
 
   // Notificações (opcional)
@@ -509,10 +586,11 @@ if (typeof module !== 'undefined') module.exports = Logica;
   setInterval(conferirAlarme, 15000);
   mostrarProx();
 
-  desenhar();
+  desenhar(); desenharMedalhas();
   msg(est.copos===0 ? 'Olá! Toque no botão amarelo a cada copo d\'água 💧' : 'Bem-vindo de volta! '+est.copos+' copo(s) hoje.');
+  conferirMedalhas(true); // dados antigos: concede as que já valem, com a data de hoje (sem vibrar: ainda não houve toque)
   window.__plantinha = {estado:function(){return est;}, verificar:verificar, setAbertura:function(t){abertura=t;},
-    desp:function(){return desp;}, conferirAlarme:conferirAlarme, somTocando:function(){return !!somT;}};
+    desp:function(){return desp;}, medalhas:function(){return ganhas;}, conferirMedalhas:conferirMedalhas, conferirAlarme:conferirAlarme, somTocando:function(){return !!somT;}};
 })();
 /* ===== PWA: service worker (cache offline + notificações no Android) ===== */
 if ('serviceWorker' in navigator) {
