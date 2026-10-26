@@ -41,6 +41,9 @@
   .contador button{width:70px;height:70px;font-size:36px;font-weight:800;background:var(--agua);color:#002;}
   .contador output{font-size:44px;font-weight:800;min-width:2ch;text-align:center}
   .aviso{font-size:16px;color:var(--suave);text-align:center;margin:0}
+  .copos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
+  .copos button{min-height:60px;font-size:19px;font-weight:800;background:transparent;color:#fff;border-color:#8fb3cc;padding:4px}
+  .copos button[aria-pressed=true]{background:var(--agua);color:#002;border-color:var(--agua)}
   .ok{background:var(--botao);color:#111;width:100%;font-size:22px;font-weight:800;padding:14px;margin-top:8px}
   /* planta */
   .caule,.folha,.flor,.botao-flor{transition:transform .8s ease, opacity .8s ease, fill .8s}
@@ -128,18 +131,20 @@
     <button id="dTeste" class="sec">🔊 Testar despertador</button>
     <p class="aviso">Mantenha o app aberto; ele toca enquanto estiver aberto ou recém-fechado.</p>
   </section>
-  <p class="aviso">A meta de 8 copos (2 L) é só uma referência ajustável, não é orientação médica. Na dúvida, converse com seu médico.</p>
+  <p class="aviso">A meta é só uma referência ajustável, não é orientação médica. Na dúvida, converse com seu médico.</p>
 </main>
 
 <dialog id="dlg">
   <form method="dialog">
-    <p style="margin-top:0"><b>Quantos copos de 250 ml por dia?</b></p>
+    <p style="margin:0"><b>Tamanho do copo:</b></p>
+    <div class="copos" id="copos-ml"><button type="button" data-ml="200">200 ml</button><button type="button" data-ml="250">250 ml</button><button type="button" data-ml="300">300 ml</button><button type="button" data-ml="500">500 ml</button></div>
+    <p style="margin:0"><b>Quantos copos de <span id="copoTxt">250</span> ml por dia?</b></p>
     <div class="contador">
       <button type="button" id="menos" aria-label="Diminuir">−</button>
       <output id="metaVal">8</output>
       <button type="button" id="mais" aria-label="Aumentar">+</button>
     </div>
-    <p class="aviso" id="metaLitros">= 2,0 litros</p>
+    <p class="aviso" id="metaLitros">= 2000 ml (2 litros)</p>
     <p class="aviso">Referência ajustável, não é orientação médica.</p>
     <button type="button" id="notif" class="sec" style="width:100%;margin-top:10px">🔔 Ativar lembretes do celular</button>
     <button class="ok" id="salvar" value="ok">Salvar</button>
@@ -155,7 +160,7 @@
 <script id="logica">
 /* ===== Lógica pura (testável no Node) ===== */
 var Logica = (function(){
-  var ML_POR_COPO = 250, META_PADRAO = 8, MIN_SEDE = 90, META_MIN = 1, META_MAX = 20;
+  var ML_POR_COPO = 250, COPOS_ML = [200,250,300,500], META_PADRAO = 8, MIN_SEDE = 90, META_MIN = 1, META_MAX = 20;
   var fmt = null;
   try { fmt = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}); } catch(e){}
   function diaDe(ms){
@@ -168,7 +173,7 @@ var Logica = (function(){
     return d.toISOString().slice(0,10);
   }
   function novoEstado(agora){
-    return {v:1, dia:diaDe(agora), copos:0, meta:META_PADRAO, sequencia:0,
+    return {v:1, dia:diaDe(agora), copos:0, meta:META_PADRAO, copoMl:ML_POR_COPO, sequencia:0,
             ultimoDiaMeta:null, seqAntes:0, diaMetaAntes:null, ultimoGole:null};
   }
   function carregar(texto, agora){
@@ -178,9 +183,11 @@ var Logica = (function(){
     if (!e || typeof e !== 'object') return base;
     for (var k in base) if (!(k in e)) e[k] = base[k];
     e.copos = Math.max(0, parseInt(e.copos,10)||0);
-    e.meta = limitarMeta(e.meta);
+    e.meta = limitarMeta(e.meta); e.copoMl = limitarCopo(e.copoMl);
     return virarDia(e, agora);
   }
+  function limitarCopo(ml){ ml = parseInt(ml,10); return COPOS_ML.indexOf(ml) >= 0 ? ml : ML_POR_COPO; } // sem campo (versão antiga) => 250
+  function litros(ml){ var l = +(ml/1000).toFixed(2); return String(l).replace('.',',') + (l===1 ? ' litro' : ' litros'); }
   function limitarMeta(m){ m = parseInt(m,10); if (!(m>=META_MIN)) m = META_PADRAO; return Math.min(META_MAX, Math.max(META_MIN, m)); }
   /* Zera o dia à meia-noite (America/Sao_Paulo). Sequência quebra se ontem não bateu a meta. */
   function virarDia(e, agora){
@@ -270,7 +277,7 @@ var Logica = (function(){
   return {hhmm:hhmm, novoDesp:novoDesp, carregarDesp:carregarDesp, naJanela:naJanela, proximoAlarme:proximoAlarme, deveTocar:deveTocar, marcarToque:marcarToque, soneca:soneca,
     ML_POR_COPO:ML_POR_COPO, META_PADRAO:META_PADRAO, MIN_SEDE:MIN_SEDE, diaDe:diaDe, diaAnterior:diaAnterior,
     novoEstado:novoEstado, carregar:carregar, virarDia:virarDia, beber:beber, desfazer:desfazer, mudarMeta:mudarMeta,
-    estagio:estagio, sequenciaVisivel:sequenciaVisivel, estaMurcha:estaMurcha, bateuMeta:bateuMeta, limitarMeta:limitarMeta};
+    estagio:estagio, sequenciaVisivel:sequenciaVisivel, estaMurcha:estaMurcha, bateuMeta:bateuMeta, limitarMeta:limitarMeta, COPOS_ML:COPOS_ML, limitarCopo:limitarCopo, litros:litros};
 })();
 if (typeof module !== 'undefined') module.exports = Logica;
 </script>
@@ -304,8 +311,8 @@ if (typeof module !== 'undefined') module.exports = Logica;
     var murcha = Logica.estaMurcha(est, Date.now(), abertura);
     $('palco').classList.toggle('murcha', murcha && s>0);
     $('copos').textContent = est.copos+'/'+est.meta;
-    $('ml').textContent = (est.copos*Logica.ML_POR_COPO)+' ml';
-    $('metaMl').textContent = est.meta*Logica.ML_POR_COPO;
+    $('ml').textContent = (est.copos*est.copoMl)+' ml';
+    $('metaMl').textContent = est.meta*est.copoMl;
     $('seq').textContent = Logica.sequenciaVisivel(est);
     $('barra').firstElementChild.style.width = Math.min(100, est.copos/est.meta*100)+'%';
     $('desfazer').disabled = est.copos===0;
@@ -344,14 +351,19 @@ if (typeof module !== 'undefined') module.exports = Logica;
   });
 
   // Configuração da meta
-  var metaTemp = est.meta;
-  function mostrarMeta(){ $('metaVal').textContent = metaTemp; $('metaLitros').textContent = '= '+(metaTemp*0.25).toFixed(2).replace('.',',').replace(/0$/,'')+' litros'; }
-  $('config').addEventListener('click', function(){ metaTemp = est.meta; mostrarMeta(); atualizarBotaoNotif(); if ($('dlg').showModal) $('dlg').showModal(); else $('dlg').setAttribute('open',''); });
+  var metaTemp = est.meta, copoTemp = est.copoMl;
+  function mostrarMeta(){
+    $('metaVal').textContent = metaTemp; $('copoTxt').textContent = copoTemp;
+    $('metaLitros').textContent = '= '+(metaTemp*copoTemp)+' ml ('+Logica.litros(metaTemp*copoTemp)+')';
+    [].forEach.call(document.querySelectorAll('#copos-ml button'), function(b){ b.setAttribute('aria-pressed', +b.dataset.ml === copoTemp); });
+  }
+  $('copos-ml').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b){ copoTemp = Logica.limitarCopo(b.dataset.ml); mostrarMeta(); } });
+  $('config').addEventListener('click', function(){ metaTemp = est.meta; copoTemp = est.copoMl; mostrarMeta(); atualizarBotaoNotif(); if ($('dlg').showModal) $('dlg').showModal(); else $('dlg').setAttribute('open',''); });
   $('menos').addEventListener('click', function(){ metaTemp = Logica.limitarMeta(metaTemp-1); mostrarMeta(); });
   $('mais').addEventListener('click', function(){ metaTemp = Logica.limitarMeta(metaTemp+1); mostrarMeta(); });
   $('salvar').addEventListener('click', function(){
-    var r = Logica.mudarMeta(est, metaTemp, Date.now()); salvar(); desenhar();
-    if (r==='bateu'){ celebrar(); msg('🌸 Com a nova meta, você já bateu o dia!'); } else msg('Meta salva: '+est.meta+' copos ('+(est.meta*250)+' ml).');
+    est.copoMl = copoTemp; var r = Logica.mudarMeta(est, metaTemp, Date.now()); salvar(); desenhar();
+    if (r==='bateu'){ celebrar(); msg('🌸 Com a nova meta, você já bateu o dia!'); } else msg('Meta salva: '+est.meta+' copos de '+est.copoMl+' ml ('+(est.meta*est.copoMl)+' ml = '+Logica.litros(est.meta*est.copoMl)+').');
     if (!$('dlg').showModal) $('dlg').removeAttribute('open');
   });
 
@@ -475,4 +487,4 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 </body>
-        </html>
+    </html>
