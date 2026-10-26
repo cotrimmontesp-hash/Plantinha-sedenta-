@@ -1,0 +1,28 @@
+{
+ "id": "./",
+ "name": "Plantinha Sedenta",
+ "short_name": "Plantinha",
+ "description": "Joguinho para lembrar de beber água: a plantinha cresce a cada copo.",
+ "lang": "pt-BR",
+ "dir": "ltr",
+ "start_url": "./",
+ "scope": "./",
+ "display": "standalone",
+ "orientation": "portrait",
+ "background_color": "#0b1d2a",
+ "theme_color": "#0b1d2a",
+ "icons": [
+  {
+   "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230b1d2a'/><path d='M50 20L32.5 46.4A21 21 0 1 0 67.5 46.4Z' fill='%234fc3ff'/><path d='M50 72V50' stroke='%231f7a2e' stroke-width='3'/><ellipse cx='43' cy='52' rx='7' ry='4.5' fill='%235ee06b'/><ellipse cx='57' cy='47' rx='7' ry='4.5' fill='%235ee06b'/></svg>",
+   "sizes": "any",
+   "type": "image/svg+xml",
+   "purpose": "any"
+  },
+  {
+   "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230b1d2a'/><path d='M50 20L32.5 46.4A21 21 0 1 0 67.5 46.4Z' fill='%234fc3ff'/><path d='M50 72V50' stroke='%231f7a2e' stroke-width='3'/><ellipse cx='43' cy='52' rx='7' ry='4.5' fill='%235ee06b'/><ellipse cx='57' cy='47' rx='7' ry='4.5' fill='%235ee06b'/></svg>",
+   "sizes": "any",
+   "type": "image/svg+xml",
+   "purpose": "maskable"
+  }
+ ]
+}
