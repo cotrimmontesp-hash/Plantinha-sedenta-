@@ -1,6 +1,6 @@
 // Plantinha Sedenta — service worker (cache-first).
 // Para publicar uma versão nova do jogo, troque o número em CACHE (ex.: v2).
-var CACHE = 'plantinha-v4';
+var CACHE = 'plantinha-v5';
 var ARQUIVOS = ['./', './index.html', './manifest.webmanifest']; // ícones vão embutidos (data:)
 
 self.addEventListener('install', function(e){
